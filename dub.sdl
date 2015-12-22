@@ -1,0 +1,6 @@
+name "freedom"
+description "A simple vibe.d server application."
+copyright "Copyright © 2015, Mihail K"
+authors "Mihail-K"
+dependency "vibe-d" version="~>0.7.26"
+versions "VibeDefaultMain"
