@@ -1,6 +1,8 @@
 
 module freedom.controllers.controller;
 
+import std.algorithm;
+import std.array;
 import std.string;
 import std.traits;
 import std.typecons;
@@ -101,6 +103,10 @@ package:
         if(methods.length == 0)
         {
             methods ~= HTTPMethod.GET;
+        }
+        else
+        {
+            methods = sort(methods).uniq.array;
         }
 
         return methods;
