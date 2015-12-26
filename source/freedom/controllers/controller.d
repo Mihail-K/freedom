@@ -73,44 +73,6 @@ private:
     HTTPServerResponse _response;
 
 package:
-    @property
-    RequestHandler handler(string name, this this_)()
-    {
-        return function void(HTTPServerRequest request, HTTPServerResponse response)
-        {
-            this_ controller = new this_;
-
-            controller.request = request;
-            controller.response = response;
-
-            __traits(getMember, controller, name)();
-        };
-    }
-
-    @property
-    HTTPMethod[] httpMethods(string name, this this_)()
-    {
-        HTTPMethod[] methods;
-
-        foreach(method; EnumMembers!HTTPMethod)
-        {
-            static if(hasUDA!(__traits(getMember, this_, name), method))
-            {
-                methods ~= method;
-            }
-        }
-
-        if(methods.length == 0)
-        {
-            methods ~= HTTPMethod.GET;
-        }
-        else
-        {
-            methods = sort(methods).uniq.array;
-        }
-
-        return methods;
-    }
 
     @property
     public HTTPServerRequest request()
@@ -122,67 +84,6 @@ package:
     void request(HTTPServerRequest request)
     {
         _request = request;
-    }
-
-    @property
-    Resource resource(this this_)()
-    {
-        static if(hasUDA!(this_, Resource))
-        {
-            alias resource = getUDAs!(this_, Resource);
-            static assert(resource.length == 1, this_.stringof ~ " may only declare one resource id.");
-
-            return resource[0];
-        }
-        else
-        {
-            enum string resource = this_.stringof;
-
-            static if(resource.endsWith("Controller"))
-            {
-                return Resource(resource[0 .. $ - "Controller".length].toLower);
-            }
-            else
-            {
-                return Resource(resource.toLower);
-            }
-        }
-    }
-
-    @property
-    Resource resource(string name, this this_)()
-    {
-        static if(hasUDA!(__traits(getMember, this_, name), Resource))
-        {
-            alias resource = getUDAs!(this_, Resource);
-            static assert(resource.length == 1, this_.stringof ~ " may only declare one resource id.");
-
-            return resource[0];
-        }
-        else
-        {
-            return Resource(name.defaultResourcePath.toLower);
-        }
-    }
-
-    @property
-    Tuple!(Resource, HTTPMethod[], RequestHandler)[] resources(this this_)()
-    {
-        this_ o = cast(this_) this;
-        Tuple!(Resource, HTTPMethod[], RequestHandler)[] resources;
-
-        foreach(name; __traits(derivedMembers, this_))
-        {
-            static if(__traits(getProtection, __traits(getMember, this_, name)) == "public")
-            {
-                static if(is(typeof(__traits(getMember, this_, name)) == function))
-                {
-                    resources ~= tuple(o.resource!name, o.httpMethods!name, o.handler!name);
-                }
-            }
-        }
-
-        return resources;
     }
 
     @property
@@ -226,5 +127,107 @@ public:
     void write(scope InputStream data, string contentType = null)
     {
         response.writeBody(data, contentType);
+    }
+}
+
+package
+{
+    @property
+    RequestHandler handler(Type : Controller, string name)()
+    {
+        return function void(HTTPServerRequest request, HTTPServerResponse response)
+        {
+            Type controller = new Type;
+
+            controller.request = request;
+            controller.response = response;
+
+            __traits(getMember, controller, name)();
+        };
+    }
+
+    @property
+    HTTPMethod[] httpMethods(Type : Controller, string name)()
+    {
+        HTTPMethod[] methods;
+
+        foreach(method; EnumMembers!HTTPMethod)
+        {
+            static if(hasUDA!(__traits(getMember, Type, name), method))
+            {
+                methods ~= method;
+            }
+        }
+
+        if(methods.length == 0)
+        {
+            methods ~= HTTPMethod.GET;
+        }
+        else
+        {
+            methods = sort(methods).uniq.array;
+        }
+
+        return methods;
+    }
+
+    @property
+    Resource resource(Type : Controller)()
+    {
+        static if(hasUDA!(Type, Resource))
+        {
+            alias resource = getUDAs!(Type, Resource);
+            static assert(resource.length == 1, Type.stringof ~ " may only declare one resource id.");
+
+            return resource[0];
+        }
+        else
+        {
+            enum string resource = Type.stringof;
+
+            static if(resource.endsWith("Controller"))
+            {
+                return Resource(resource[0 .. $ - "Controller".length].toLower);
+            }
+            else
+            {
+                return Resource(resource.toLower);
+            }
+        }
+    }
+
+    @property
+    Resource resource(Type : Controller, string name)()
+    {
+        static if(hasUDA!(__traits(getMember, Type, name), Resource))
+        {
+            alias resource = getUDAs!(Type, Resource);
+            static assert(resource.length == 1, Type.stringof ~ " may only declare one resource id.");
+
+            return resource[0];
+        }
+        else
+        {
+            return Resource(name.defaultResourcePath.toLower);
+        }
+    }
+
+    @property
+    Tuple!(Resource, HTTPMethod[], RequestHandler)[] resources(Type : Controller)()
+    {
+        Tuple!(Resource, HTTPMethod[], RequestHandler)[] resources;
+
+        foreach(name; __traits(derivedMembers, Type))
+        {
+            static if(__traits(getProtection, __traits(getMember, Type, name)) == "public")
+            {
+                static if(is(typeof(__traits(getMember, Type, name)) == function))
+                {
+                    resources ~= tuple(resource!(Type, name), httpMethods!(Type, name), handler!(Type, name));
+                }
+            }
+        }
+
+        return resources;
     }
 }
