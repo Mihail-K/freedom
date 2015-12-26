@@ -96,6 +96,10 @@ protected:
         }
     }
 
+    static struct Catch
+    {
+    }
+
 private:
     string _action;
     HTTPServerRequest _request;
@@ -180,11 +184,11 @@ package
         {
             static if(isBeforeFunction!(Type, name))
             {
-                alias after = getUDAs!(__traits(getMember, Type, name), Controller.Before);
+                alias before = getUDAs!(__traits(getMember, Type, name), Controller.Before);
 
-                static if(after.length > 0)
+                static if(before.length > 0)
                 {
-                    foreach(descriptor; after)
+                    foreach(descriptor; before)
                     {
                         if(descriptor.matches(controller.action))
                         {
@@ -199,6 +203,26 @@ package
                 }
             }
         }
+    }
+
+    bool fireCatchCallbacks(Type : Controller)(Type controller, Throwable throwable)
+    {
+        foreach(name; __traits(derivedMembers, Type))
+        {
+            static if(isCatchFunction!(Type, name))
+            {
+                alias params = Parameters!(__traits(getMember, Type, name));
+                auto exception = cast(params[0]) throwable;
+
+                if(exception !is null)
+                {
+                    __traits(getMember, controller, name)(exception);
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     @property
@@ -224,26 +248,6 @@ package
         }
 
         return methods;
-    }
-
-    @property
-    template isPublicFunction(Type : Controller, string name)
-    {
-        static if(__traits(hasMember, Type, name))
-        {
-            static if(__traits(getProtection, __traits(getMember, Type, name)) == "public")
-            {
-                enum isPublicFunction = is(typeof(__traits(getMember, Type, name)) == function);
-            }
-            else
-            {
-                enum isPublicFunction = false;
-            }
-        }
-        else
-        {
-            enum isPublicFunction = false;
-        }
     }
 
     @property
@@ -273,6 +277,48 @@ package
     }
 
     @property
+    template isCatchFunction(Type : Controller, string name)
+    {
+        static if(isPublicFunction!(Type, name))
+        {
+            alias params = Parameters!(__traits(getMember, Type, name));
+
+            static if(params.length == 1)
+            {
+                enum isCatchFunction = is(params[0] : Throwable);
+            }
+            else
+            {
+                enum isCatchFunction = false;
+            }
+        }
+        else
+        {
+            enum isCatchFunction = false;
+        }
+    }
+
+    @property
+    template isPublicFunction(Type : Controller, string name)
+    {
+        static if(__traits(hasMember, Type, name))
+        {
+            static if(__traits(getProtection, __traits(getMember, Type, name)) == "public")
+            {
+                enum isPublicFunction = is(typeof(__traits(getMember, Type, name)) == function);
+            }
+            else
+            {
+                enum isPublicFunction = false;
+            }
+        }
+        else
+        {
+            enum isPublicFunction = false;
+        }
+    }
+
+    @property
     template isResourceFunction(Type : Controller, string name)
     {
         static if(isPublicFunction!(Type, name))
@@ -296,13 +342,25 @@ package
             controller._request = request;
             controller._response = response;
 
-            // Fire before-action callbacks.
-            controller.fireBeforeCallbacks;
+            try
+            {
+                // Fire before-action callbacks.
+                controller.fireBeforeCallbacks;
 
-            __traits(getMember, controller, name)();
+                __traits(getMember, controller, name)();
 
-            // Fire after-action callbacks.
-            controller.fireAfterCallbacks;
+                // Fire after-action callbacks.
+                controller.fireAfterCallbacks;
+            }
+            catch(Throwable throwable)
+            {
+                // Fire exception-handler callbacks.
+                if(!controller.fireCatchCallbacks(throwable))
+                {
+                    // Re-throw.
+                    throw throwable;
+                }
+            }
         };
     }
 
