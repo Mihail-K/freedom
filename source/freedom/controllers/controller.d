@@ -16,8 +16,6 @@ private:
     string _path;
 
 public:
-    @disable this();
-
     this(string path)
     {
         _path = path;
@@ -426,7 +424,7 @@ package
     }
 
     @property
-    Resource resource(Type : Controller, string name)()
+    template resource(Type : Controller, string name)
     {
         static if(isResourceFunction!(Type, name))
         {
@@ -434,11 +432,11 @@ package
 
             static if(resourceUDAs.length > 0)
             {
-                return resourceUDAs[0];
+                enum Resource resource = resourceUDAs[0];
             }
             else
             {
-                return Resource(name.defaultResourcePath.toLower);
+                enum Resource resource = Resource(name.defaultResourcePath.toLower);
             }
         }
         else

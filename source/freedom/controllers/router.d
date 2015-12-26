@@ -25,7 +25,7 @@ public:
 
         foreach(descriptor; resources!Type)
         {
-            // Check if the mapping for the resource is permitted.
+            // Check if mapping for this resource is permitted.
             if(!filter || filter.countUntil(descriptor.name) != -1)
             {
                 string path = descriptor.resource.path;
