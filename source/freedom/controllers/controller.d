@@ -129,6 +129,7 @@ package
 {
     struct ResourceDescriptor
     {
+        string name;
         Resource resource;
         HTTPMethod[] httpMethods;
         RequestHandler requestHandler;
@@ -393,11 +394,11 @@ package
     {
         static if(isResourceFunction!(Type, name))
         {
-            alias resource = getUDAs!(Type, Resource);
+            alias resourceUDAs = getUDAs!(__traits(getMember, Type, name), Resource);
 
-            static if(resource.length > 0)
+            static if(resourceUDAs.length > 0)
             {
-                return resource[0];
+                return resourceUDAs[0];
             }
             else
             {
@@ -420,6 +421,7 @@ package
             static if(isResourceFunction!(Type, name))
             {
                 resources ~= ResourceDescriptor(
+                    name,
                     resource!(Type, name),
                     httpMethods!(Type, name),
                     requestHandler!(Type, name)

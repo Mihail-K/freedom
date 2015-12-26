@@ -1,6 +1,8 @@
 
 module freedom.controllers.router;
 
+import std.algorithm;
+
 import vibe.http.router;
 import vibe.http.server;
 
@@ -12,26 +14,31 @@ private:
     URLRouter _root;
 
 public:
-    this()
+    this(string prefix = null)
     {
-        _root = new URLRouter;
+        _root = new URLRouter(prefix);
     }
 
-    void bind(Type : Controller)()
+    ControllerRouter route(Type : Controller)(string[] filter = null...)
     {
-        auto child = new URLRouter;
+        auto parent = new URLRouter(resource!Type.path);
 
         foreach(descriptor; resources!Type)
         {
-            string path = resource!Type.join(descriptor.resource).path;
-
-            foreach(HTTPMethod method; descriptor.httpMethods)
+            // Check if the mapping for the resource is permitted.
+            if(!filter || filter.countUntil(descriptor.name) != -1)
             {
-                child.match(method, path, descriptor.requestHandler);
+                string path = descriptor.resource.path;
+
+                foreach(HTTPMethod method; descriptor.httpMethods)
+                {
+                    parent.match(method, path, descriptor.requestHandler);
+                }
             }
         }
 
-        _root.any(resource!Type.path ~ "/*", child);
+        _root.any(resource!Type.path ~ "*", parent);
+        return this;
     }
 
     void handleRequest(HTTPServerRequest request, HTTPServerResponse response)
