@@ -45,6 +45,57 @@ alias RequestHandler = void function(HTTPServerRequest, HTTPServerResponse);
 
 abstract class Controller
 {
+protected:
+    static struct After
+    {
+    private:
+        string[] _actions = [ "*" ];
+
+    public:
+        this(string[] actions...)
+        {
+            _actions = actions.dup;
+        }
+
+        bool matches(string target)
+        {
+            foreach(action; _actions)
+            {
+                if(action == target || action == "*")
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
+
+    static struct Before
+    {
+    private:
+        string[] _actions = [ "*" ];
+
+    public:
+        this(string[] actions...)
+        {
+            _actions = actions.dup;
+        }
+
+        bool matches(string target)
+        {
+            foreach(action; _actions)
+            {
+                if(action == target || action == "*")
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
+
 private:
     string _action;
     HTTPServerRequest _request;
@@ -96,6 +147,60 @@ package
         }
     }
 
+    void fireAfterCallbacks(Type : Controller)(Type controller)
+    {
+        foreach(name; __traits(derivedMembers, Type))
+        {
+            static if(isAfterFunction!(Type, name))
+            {
+                alias after = getUDAs!(__traits(getMember, Type, name), Controller.After);
+
+                static if(after.length > 0)
+                {
+                    foreach(descriptor; after)
+                    {
+                        if(descriptor.matches(controller.action))
+                        {
+                            __traits(getMember, controller, name)();
+                            break;
+                        }
+                    }
+                }
+                else
+                {
+                    __traits(getMember, controller, name)();
+                }
+            }
+        }
+    }
+
+    void fireBeforeCallbacks(Type : Controller)(Type controller)
+    {
+        foreach(name; __traits(derivedMembers, Type))
+        {
+            static if(isBeforeFunction!(Type, name))
+            {
+                alias after = getUDAs!(__traits(getMember, Type, name), Controller.Before);
+
+                static if(after.length > 0)
+                {
+                    foreach(descriptor; after)
+                    {
+                        if(descriptor.matches(controller.action))
+                        {
+                            __traits(getMember, controller, name)();
+                            break;
+                        }
+                    }
+                }
+                else
+                {
+                    __traits(getMember, controller, name)();
+                }
+            }
+        }
+    }
+
     @property
     HTTPMethod[] httpMethods(Type : Controller, string name)()
     {
@@ -142,6 +247,32 @@ package
     }
 
     @property
+    template isAfterFunction(Type : Controller, string name)
+    {
+        static if(isPublicFunction!(Type, name))
+        {
+            enum isAfterFunction = hasUDA!(__traits(getMember, Type, name), Controller.After);
+        }
+        else
+        {
+            enum isAfterFunction = false;
+        }
+    }
+
+    @property
+    template isBeforeFunction(Type : Controller, string name)
+    {
+        static if(isPublicFunction!(Type, name))
+        {
+            enum isBeforeFunction = hasUDA!(__traits(getMember, Type, name), Controller.Before);
+        }
+        else
+        {
+            enum isBeforeFunction = false;
+        }
+    }
+
+    @property
     template isResourceFunction(Type : Controller, string name)
     {
         static if(isPublicFunction!(Type, name))
@@ -165,31 +296,36 @@ package
             controller._request = request;
             controller._response = response;
 
+            // Fire before-action callbacks.
+            controller.fireBeforeCallbacks;
+
             __traits(getMember, controller, name)();
+
+            // Fire after-action callbacks.
+            controller.fireAfterCallbacks;
         };
     }
 
-    @property
-    Resource resource(Type : Controller)()
+    template resource(Type : Controller)
     {
         static if(hasUDA!(Type, Resource))
         {
-            alias resource = getUDAs!(Type, Resource);
-            static assert(resource.length == 1, Type.stringof ~ " may only declare one resource id.");
+            alias resourceUDAs = getUDAs!(Type, Resource);
+            static assert(resourceUDAs.length == 1, Type.stringof ~ " may only declare one resource id.");
 
-            return resource[0];
+            enum Resource resource = resourceUDAs[0];
         }
         else
         {
-            enum string resource = Type.stringof;
+            enum string typeName = Type.stringof;
 
-            static if(resource.endsWith("Controller"))
+            static if(typeName.endsWith("Controller"))
             {
-                return Resource(resource[0 .. $ - "Controller".length].toLower);
+                enum Resource resource = Resource(typeName[0 .. $ - "Controller".length].toLower);
             }
             else
             {
-                return Resource(resource.toLower);
+                enum Resource resource = Resource(typeName.toLower);
             }
         }
     }
