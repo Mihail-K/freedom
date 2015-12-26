@@ -122,6 +122,39 @@ package
     }
 
     @property
+    template isPublicFunction(Type : Controller, string name)
+    {
+        static if(__traits(hasMember, Type, name))
+        {
+            static if(__traits(getProtection, __traits(getMember, Type, name)) == "public")
+            {
+                enum isPublicFunction = is(typeof(__traits(getMember, Type, name)) == function);
+            }
+            else
+            {
+                enum isPublicFunction = false;
+            }
+        }
+        else
+        {
+            enum isPublicFunction = false;
+        }
+    }
+
+    @property
+    template isResourceFunction(Type : Controller, string name)
+    {
+        static if(isPublicFunction!(Type, name))
+        {
+            enum isResourceFunction = hasUDA!(__traits(getMember, Type, name), Resource);
+        }
+        else
+        {
+            enum isResourceFunction = false;
+        }
+    }
+
+    @property
     RequestHandler requestHandler(Type : Controller, string name)()
     {
         return function void(HTTPServerRequest request, HTTPServerResponse response)
@@ -164,16 +197,22 @@ package
     @property
     Resource resource(Type : Controller, string name)()
     {
-        static if(hasUDA!(__traits(getMember, Type, name), Resource))
+        static if(isResourceFunction!(Type, name))
         {
             alias resource = getUDAs!(Type, Resource);
-            static assert(resource.length == 1, Type.stringof ~ " may only declare one resource id.");
 
-            return resource[0];
+            static if(resource.length > 0)
+            {
+                return resource[0];
+            }
+            else
+            {
+                return Resource(name.defaultResourcePath.toLower);
+            }
         }
         else
         {
-            return Resource(name.defaultResourcePath.toLower);
+            static assert(0, Type.stringof ~ "." ~ name ~ " is not a resource.");
         }
     }
 
@@ -184,16 +223,13 @@ package
 
         foreach(name; __traits(derivedMembers, Type))
         {
-            static if(__traits(getProtection, __traits(getMember, Type, name)) == "public")
+            static if(isResourceFunction!(Type, name))
             {
-                static if(is(typeof(__traits(getMember, Type, name)) == function))
-                {
-                    resources ~= ResourceDescriptor(
-                        resource!(Type, name),
-                        httpMethods!(Type, name),
-                        requestHandler!(Type, name)
-                    );
-                }
+                resources ~= ResourceDescriptor(
+                    resource!(Type, name),
+                    httpMethods!(Type, name),
+                    requestHandler!(Type, name)
+                );
             }
         }
 
