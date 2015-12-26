@@ -21,13 +21,13 @@ public:
     {
         auto child = new URLRouter;
 
-        foreach(res; resources!Type)
+        foreach(descriptor; resources!Type)
         {
-            string path = resource!Type.join(res[0]).path;
+            string path = resource!Type.join(descriptor.resource).path;
 
-            foreach(HTTPMethod method; res[1])
+            foreach(HTTPMethod method; descriptor.httpMethods)
             {
-                child.match(method, path, res[2]);
+                child.match(method, path, descriptor.requestHandler);
             }
         }
 

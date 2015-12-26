@@ -132,18 +132,11 @@ public:
 
 package
 {
-    @property
-    RequestHandler handler(Type : Controller, string name)()
+    struct ResourceDescriptor
     {
-        return function void(HTTPServerRequest request, HTTPServerResponse response)
-        {
-            Type controller = new Type;
-
-            controller.request = request;
-            controller.response = response;
-
-            __traits(getMember, controller, name)();
-        };
+        Resource resource;
+        HTTPMethod[] httpMethods;
+        RequestHandler requestHandler;
     }
 
     @property
@@ -169,6 +162,20 @@ package
         }
 
         return methods;
+    }
+
+    @property
+    RequestHandler requestHandler(Type : Controller, string name)()
+    {
+        return function void(HTTPServerRequest request, HTTPServerResponse response)
+        {
+            Type controller = new Type;
+
+            controller.request = request;
+            controller.response = response;
+
+            __traits(getMember, controller, name)();
+        };
     }
 
     @property
@@ -213,9 +220,9 @@ package
     }
 
     @property
-    Tuple!(Resource, HTTPMethod[], RequestHandler)[] resources(Type : Controller)()
+    ResourceDescriptor[] resources(Type : Controller)()
     {
-        Tuple!(Resource, HTTPMethod[], RequestHandler)[] resources;
+        ResourceDescriptor[] resources;
 
         foreach(name; __traits(derivedMembers, Type))
         {
@@ -223,7 +230,11 @@ package
             {
                 static if(is(typeof(__traits(getMember, Type, name)) == function))
                 {
-                    resources ~= tuple(resource!(Type, name), httpMethods!(Type, name), handler!(Type, name));
+                    resources ~= ResourceDescriptor(
+                        resource!(Type, name),
+                        httpMethods!(Type, name),
+                        requestHandler!(Type, name)
+                    );
                 }
             }
         }
