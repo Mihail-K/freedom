@@ -7,6 +7,7 @@ import std.string;
 import std.traits;
 import std.typecons;
 
+import vibe.inet.url;
 import vibe.http.server;
 
 struct Resource
@@ -45,6 +46,8 @@ alias RequestHandler = void function(HTTPServerRequest, HTTPServerResponse);
 
 abstract class Controller
 {
+    mixin HTTPMethods;
+
 protected:
     static struct After
     {
@@ -112,6 +115,22 @@ public:
         return _action;
     }
 
+    void redirect(string url, int status = 302)
+    {
+        response.redirect(url, status);
+    }
+
+    void redirect(URL url, int status = 302)
+    {
+        response.redirect(url, status);
+    }
+
+    @property
+    void render(string templateFile, Aliases...)()
+    {
+        response.render!(templateFile, Aliases);
+    }
+
     @property
     HTTPServerRequest request()
     {
@@ -127,6 +146,23 @@ public:
 
 package
 {
+    mixin template HTTPMethods()
+    {
+        private static string httpMethodsSource()
+        {
+            string result = "";
+
+            foreach(name; __traits(allMembers, HTTPMethod))
+            {
+                result ~= "alias " ~ name ~ " = HTTPMethod." ~ name ~ ";";
+            }
+
+            return result;
+        }
+
+        mixin(httpMethodsSource);
+    }
+
     struct ResourceDescriptor
     {
         string name;
