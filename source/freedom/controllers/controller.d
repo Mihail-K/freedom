@@ -9,29 +9,6 @@ import std.typecons;
 
 import vibe.http.server;
 
-@property
-string defaultResourcePath(string name)
-{
-    switch(name)
-    {
-        case "index":
-        case "create":
-            return "/";
-        case "show":
-        case "update":
-        case "destroy":
-            return "/:id";
-        default:
-            return name;
-    }
-}
-
-@property
-string leadingSlash(string path)
-{
-    return path.length && path[0] != '/' ? "/" ~ path : path;
-}
-
 struct Resource
 {
 private:
@@ -60,7 +37,7 @@ public:
     @property
     string path()
     {
-        return _path.leadingSlash;
+        return _path.length && _path[0] != '/' ? "/" ~ _path : _path;
     }
 }
 
@@ -69,64 +46,27 @@ alias RequestHandler = void function(HTTPServerRequest, HTTPServerResponse);
 abstract class Controller
 {
 private:
+    string _action;
     HTTPServerRequest _request;
     HTTPServerResponse _response;
 
-package:
+public:
+    @property
+    string action()
+    {
+        return _action;
+    }
 
     @property
-    public HTTPServerRequest request()
+    HTTPServerRequest request()
     {
         return _request;
     }
 
     @property
-    void request(HTTPServerRequest request)
-    {
-        _request = request;
-    }
-
-    @property
-    public HTTPServerResponse response()
+    HTTPServerResponse response()
     {
         return _response;
-    }
-
-    @property
-    void response(HTTPServerResponse response)
-    {
-        _response = response;
-    }
-
-public:
-    void head()
-    {
-        response.writeVoidBody;
-    }
-
-    void write(const(ubyte[]) data, string contentType = null)
-    {
-        response.writeBody(data, contentType);
-    }
-
-    void write(string text, string contentType = "text/plain; charset=UTF-8")
-    {
-        response.writeBody(text, contentType);
-    }
-
-    void write(const(ubyte[]) data, int status, string contentType = null)
-    {
-        response.writeBody(data, status, contentType);
-    }
-
-    void write(string text, int status, string contentType = "text/plain; charset=UTF-8")
-    {
-        response.writeBody(text, status, contentType);
-    }
-
-    void write(scope InputStream data, string contentType = null)
-    {
-        response.writeBody(data, contentType);
     }
 }
 
@@ -137,6 +77,23 @@ package
         Resource resource;
         HTTPMethod[] httpMethods;
         RequestHandler requestHandler;
+    }
+
+    @property
+    string defaultResourcePath(string name)
+    {
+        switch(name)
+        {
+            case "index":
+            case "create":
+                return "/";
+            case "show":
+            case "update":
+            case "destroy":
+                return "/:id";
+            default:
+                return name;
+        }
     }
 
     @property
@@ -171,8 +128,9 @@ package
         {
             Type controller = new Type;
 
-            controller.request = request;
-            controller.response = response;
+            controller._action = name;
+            controller._request = request;
+            controller._response = response;
 
             __traits(getMember, controller, name)();
         };
